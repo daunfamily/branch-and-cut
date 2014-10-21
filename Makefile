@@ -13,7 +13,7 @@ CPPC = g++ -m64 -O3 -std=c++0x
 #############################
 
 #### opcoes de compilacao e includes
-CCOPT         = -fPIC -fno-strict-aliasing -fexceptions -DNDEBUG -DIL_STD
+CCOPT         = -fPIC -fno-strict-aliasing -fexceptions -DNDEBUG -DIL_STD -g
 
 TSPINC        = $(TSPPARSERDIR)/include
 TSPLIBDIR     = $(TSPPARSERDIR)/obj
