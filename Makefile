@@ -16,10 +16,10 @@ CPPC = g++ -m64 -O3 -std=c++0x
 CCOPT         = -fPIC -fno-strict-aliasing -fexceptions -DNDEBUG -DIL_STD -g
 
 TSPINC        = $(TSPPARSERDIR)/include
-TSPLIBDIR     = $(TSPPARSERDIR)/obj
+TSPLIBDIR     = $(TSPPARSERDIR)/lib
 
 METAHINC      = $(METAHDIR)/include
-METAHLIBDIR   = $(METAHDIR)/obj
+METAHLIBDIR   = $(METAHDIR)/lib
 
 CPLEXINC      = $(CPLEXDIR)/include
 CPLEXLIBDIR   = $(CPLEXDIR)/lib/$(SYSTEM)/$(LIBFORMAT)

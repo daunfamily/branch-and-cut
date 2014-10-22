@@ -11,19 +11,30 @@
 #include <sstream>
 #include <string>
 
-#include "../include/bnc.h"
+#include "../include/BNC.h"
 
 #include "Instance.h"
 #include "Util.h"
 
+std::string inline getInstanceName(std::string name) {
+    size_t s = name.find("/") + 1;
+    size_t e = name.find(".tsp") - 1;
+    return name.substr(s, (e-s));
+}
+
 int main(int argc, char** argv) {
     std::string file = "";
     std::stringstream ss;
+    int ub = 99999;
 
     if (argc >= 2) {
         file.assign(argv[1]);
+        if (argc >= 3) {
+            ss.str(argv[2]);
+            ss >> ub;
+        }
     } else {
-        std::cout << "Uso " << argv[0] << " arquivo_entrada" << std::endl;
+        std::cout << "Uso " << argv[0] << " arquivo_entrada [ub]" << std::endl;
         return 1;
     }
 
@@ -43,12 +54,10 @@ int main(int argc, char** argv) {
     }
 
     double bef = tsp::cpuTime();
-    initBranchAndCut(instance.getMatrix(), instance.getDim());
+    BNC bnc(instance);
+    bnc.initBranchAndCut(ub, getInstanceName(file));
     double aft = tsp::cpuTime();
     std::cout << (aft-bef) << "ms" << std::endl;
-
-
-
 
     return 0;
 }
