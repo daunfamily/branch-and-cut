@@ -21,10 +21,10 @@ BNC::~BNC() {
 
 int BNC::CPXPUBLIC mycutcallback(CPXCENVptr env, void *cbdata, int wherefrom, 
         void *cbhandle, int *useraction_p) {
-
     using namespace std;
 
     int i, j, m, dim, inf = 9999;
+
     // lock
     pthread_mutex_t cs_mutex = PTHREAD_MUTEX_INITIALIZER;
     pthread_mutex_lock(&cs_mutex);
@@ -43,12 +43,6 @@ int BNC::CPXPUBLIC mycutcallback(CPXCENVptr env, void *cbdata, int wherefrom,
 
     CPXgetcallbacknodex(env, cbdata, wherefrom, X, 0, bnc->numCols - 1);
 
-    // print X
-    for (i = 0; i < bnc->numCols; i++) {
-        std::cout << X[i] << " ";
-    }
-    std::cout << std::endl;
-
     // inicializacao algoritmo max-back
     for (i = 0; i < dim; i++) {
         V.insert(i);
@@ -62,7 +56,6 @@ int BNC::CPXPUBLIC mycutcallback(CPXCENVptr env, void *cbdata, int wherefrom,
     }
     cutval = cutmin;
     S = Smin;
-    // ----------------------------------
 
     while(S.size() < dim) {
         // seleciona v fora de S de maior max-back
@@ -77,8 +70,6 @@ int BNC::CPXPUBLIC mycutcallback(CPXCENVptr env, void *cbdata, int wherefrom,
         }
 
         jt = V.find(i);
-        std::cout << *jt << std::endl;
-
         S.insert(*jt); // S = S + [v]
 
         cutval += 2 - (2*b[*jt]);
@@ -93,17 +84,14 @@ int BNC::CPXPUBLIC mycutcallback(CPXCENVptr env, void *cbdata, int wherefrom,
             cutmin = cutval;
             Smin = S;
         }
-        std::cout << S.size() << std::endl;
-        std::cin >> i;
     }
-//
-//    for (i = 0; i < dim; i++) {
-//        delete[] sol[i];
-//    }
-//    delete[] sol;
 
     // unlock
     pthread_mutex_unlock(&cs_mutex);
+
+    delete[] X;
+    delete[] b;
+
     return 0;
 }
 
