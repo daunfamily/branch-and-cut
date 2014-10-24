@@ -24,7 +24,7 @@ int BNC::CPXPUBLIC mycutcallback(CPXCENVptr env, void *cbdata, int wherefrom,
 
     using namespace std;
 
-    int i, dim;
+    int i, j, m, dim, inf = 9999;
     // lock
     pthread_mutex_t cs_mutex = PTHREAD_MUTEX_INITIALIZER;
     pthread_mutex_lock(&cs_mutex);
@@ -34,37 +34,73 @@ int BNC::CPXPUBLIC mycutcallback(CPXCENVptr env, void *cbdata, int wherefrom,
     BNC * bnc = (BNC * ) cbhandle;
     dim = bnc->i->getDim();
 
+    set<int> V, Smin, S;
+    set<int>::iterator it, jt;
+    double cutmin = 0, cutval = 0;
+
     double *X = new double[bnc->numCols];
-    double cutmin, cutval;
-    set<int> S0, Smin, S;
+    double *b = new double[dim];
 
     CPXgetcallbacknodex(env, cbdata, wherefrom, X, 0, bnc->numCols - 1);
 
-    double ** sol = new double * [dim];
-    for (i = 0; i < dim; i++) {
-        sol[i] = new double[dim];
-    }
-
-
-    // inicializacao algoritmo max-back
-    S0.insert(0);
-
+    // print X
     for (i = 0; i < bnc->numCols; i++) {
         std::cout << X[i] << " ";
     }
+    std::cout << std::endl;
 
-    tsp::printMatrix<double>(const_cast<const double **>(sol), dim, 4);
-    
-//    while (S.size() != bnc->i->getDim()) {
-
-        
-
-//    }
-
+    // inicializacao algoritmo max-back
     for (i = 0; i < dim; i++) {
-        delete[] sol[i];
+        V.insert(i);
     }
-    delete[] sol;
+
+    S.insert(0);
+    // soma dos pesos (X*) das arestas cruzando S0
+    for (i = 1; i < dim; i++) {
+        cutmin += X[i];
+        b[i]   += X[i*dim];
+    }
+    cutval = cutmin;
+    S = Smin;
+    // ----------------------------------
+
+    while(S.size() < dim) {
+        // seleciona v fora de S de maior max-back
+        m = -1, i = -1;
+        for (it = V.begin(); it != V.end(); ++it) {
+            if (S.find(*it) == S.end()) { // v nao pertencente a S
+                if (b[*it] > m) {
+                    m = b[*it];
+                    i = *it;
+                }
+            }
+        }
+
+        jt = V.find(i);
+        std::cout << *jt << std::endl;
+
+        S.insert(*jt); // S = S + [v]
+
+        cutval += 2 - (2*b[*jt]);
+
+        for (it = V.begin(); it != V.end(); ++it) {
+            if (S.find(*it) == S.end()) { // v nao pertencente a S
+                b[*it] += X[(*jt)*dim + *it];
+            }
+        }
+
+        if (cutval < cutmin) {
+            cutmin = cutval;
+            Smin = S;
+        }
+        std::cout << S.size() << std::endl;
+        std::cin >> i;
+    }
+//
+//    for (i = 0; i < dim; i++) {
+//        delete[] sol[i];
+//    }
+//    delete[] sol;
 
     // unlock
     pthread_mutex_unlock(&cs_mutex);
