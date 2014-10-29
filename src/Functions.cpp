@@ -33,7 +33,6 @@ namespace bnc {
         char name[100];
         for (int k = 0; k < numcols; k++) { 
             std::string s = getColName(env, model, k);
-            std::cout << "36->" << s << std::endl;
             int i,j;
             if (s.at(0) == 'X') {
                 strncpy(name,s.c_str(),100); 

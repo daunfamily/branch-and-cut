@@ -19,6 +19,12 @@ BNC::~BNC() {
     delete i;
 }
 
+inline double max(double &lhs, double &rhs) {
+    if (lhs > rhs)
+        return lhs;
+    return rhs;
+}
+
 int BNC::CPXPUBLIC mycutcallback(CPXCENVptr env, void *cbdata, int wherefrom, 
         void *cbhandle, int *useraction_p) {
     using namespace std;
@@ -40,22 +46,35 @@ int BNC::CPXPUBLIC mycutcallback(CPXCENVptr env, void *cbdata, int wherefrom,
 
     double *X = new double[bnc->numCols];
     double *b = new double[dim];
+    double **sol = new double * [dim];
+    for (i = 0; i < dim; i++) {
+        sol[i] = new double[dim];
+    }
 
     CPXgetcallbacknodex(env, cbdata, wherefrom, X, 0, bnc->numCols - 1);
+    bnc::storeLPSolution(env, bnc->model, bnc->numCols, X, sol);
 
     // inicializacao algoritmo max-back
     for (i = 0; i < dim; i++) {
         V.insert(i);
+        b[i] = 0;
+    }
+
+    for (i = 0; i < dim; i++) {
+        for (j = i + 1; j < dim; j++) {
+            std::cout << setw(5) << std::fixed << std::setprecision(2) << X[i*dim + j];
+        }
+        std::cout << std::endl;
     }
 
     S.insert(0);
     // soma dos pesos (X*) das arestas cruzando S0
     for (i = 1; i < dim; i++) {
-        cutmin += X[i];
-        b[i]   += X[i*dim];
+        cutmin += sol[0][i];
+        b[i]   += sol[0][i];
     }
     cutval = cutmin;
-    S = Smin;
+    Smin = S;
 
     while(S.size() < dim) {
         // seleciona v fora de S de maior max-back
@@ -70,13 +89,16 @@ int BNC::CPXPUBLIC mycutcallback(CPXCENVptr env, void *cbdata, int wherefrom,
         }
 
         jt = V.find(i);
-        S.insert(*jt); // S = S + [v]
+        S.insert(*jt); // S = S + v
 
         cutval += 2 - (2*b[*jt]);
 
         for (it = V.begin(); it != V.end(); ++it) {
             if (S.find(*it) == S.end()) { // v nao pertencente a S
-                b[*it] += X[(*jt)*dim + *it];
+                if (*jt < *it)
+                    b[*it] += sol[*jt][*it];
+                else
+                    b[*it] += sol[*it][*jt];
             }
         }
 
@@ -86,11 +108,20 @@ int BNC::CPXPUBLIC mycutcallback(CPXCENVptr env, void *cbdata, int wherefrom,
         }
     }
 
+    std::cout << "Smin: (" << Smin.size() << ")" << std::endl;
+    for (it = Smin.begin(); it != Smin.end(); ++it) {
+        std::cout << *it << " ";
+    }
+    std::cout << std::endl;
+
     // unlock
     pthread_mutex_unlock(&cs_mutex);
 
     delete[] X;
     delete[] b;
+    for (i = 0; i < dim; i++)
+        delete[] sol[i];
+    delete[] sol;
 
     return 0;
 }
@@ -104,15 +135,33 @@ void BNC::createLP(const int ** matrix, unsigned dim) {
 
         char var[100];
         for (i = 0; i < dim; i++) {
-            IloIntVarArray array(env, dim + 1, 0, 2);
+            IloIntVarArray array(env, dim, 0, 1);
             x[i] = array;
-            for (j = 0; j < dim; j++) {
+            for (j = i + 1; j < dim; j++) {
                 x[i][j].setBounds(0, 1);
                 sprintf(var, "X_%d_%d", i, j);
                 x[i][j].setName(var);
                 model.add(x[i][j]);
+            }
+        }
+
+        // Restricoes
+        char c[100];
+        for (i = 0; i < dim; i++) {
+            IloExpr sum(env);
+            for (j = i + 1; j < dim; j++) {
+                sum += x[i][j];
 
             }
+
+            for (j = 0; j < i; j++) {
+                sum += x[j][i];
+            }
+
+            IloRange r = (sum == 2);
+            sprintf(c, "c_i%d", i);
+            r.setName(c);
+            model.add(r);
         }
 
         // Funcao objetivo
@@ -124,42 +173,10 @@ void BNC::createLP(const int ** matrix, unsigned dim) {
         }
         model.add(IloMinimize(env, cost));
 
-        // Restricoes
-        char c[100];
-        for (i = 0; i < dim; i++) {
-            IloExpr sum(env);
-            for (j = 0; j < dim; j++) {
-                if (i != j) {
-                    sum += x[i][j];
-                }
-            }
-
-            IloRange r = (sum == 1);
-            sprintf(c, "c_i%d", i);
-            r.setName(c);
-            model.add(r);
-        }
-
-        for (j = 0; j < dim; j++) {
-            IloExpr sum(env);
-            for (i = 0; i < dim; i++) {
-                if (i != j) {
-                    sum += x[i][j];
-                }
-
-            }
-            IloRange r = (sum == 1);
-            sprintf(c, "c_j%d", i);
-            r.setName(c);
-            model.add(r);
-        }
-
         // Escreve modelo LP para arquivo
         IloCplex TSP(model);
         TSP.exportModel("TSP.lp");
         env.end();
-
-
 
     } catch(IloException& e) {
         cerr  << " ERROR: " << e << endl;   
@@ -175,7 +192,7 @@ int BNC::initBranchAndCut(int ub, std::string instanceName) {
     // Inicializa ambiente CPLEX
     int status = 0;
     CPXENVptr env = CPXopenCPLEX(&status);
-    CPXLPptr  model = CPXcreateprob(env, &status, "TSP");
+    model = CPXcreateprob(env, &status, "TSP");
 
     CPXreadcopyprob(env, model, "TSP.lp", NULL);
 
