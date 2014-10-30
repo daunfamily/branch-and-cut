@@ -41,4 +41,41 @@ namespace bnc {
             }
         }
     }
+
+    void printSolution(CPXCENVptr env, CPXLPptr model, int cur_numcols, int N) {
+        using namespace std;
+
+        double *x = new double[cur_numcols];
+        CPXgetx (env, model, x, 0, cur_numcols-1);
+
+        double **sol = new double*[N+1];
+
+        for (int i = 0; i < N + 1; i++) {
+            sol[i] = new double[N + 1];
+            for (int j = 0; j < N + 1; j++) {
+                sol[i][j] = 0;
+            }
+        }
+
+        char varName[100];
+        cout << "\n\nSolution:\n " << endl;
+        for (int k = 0; k < cur_numcols; k++) { 
+            string s = getColName(env, model, k);
+            int i,j;
+            if (s.at(0) == 'X') {
+                strncpy(varName,s.c_str(),100); 
+                sscanf(varName,"X_%d_%d", &i, &j);
+                sol[i][j] = x[k];
+                if (sol[i][j] > 0.01) {
+                    cout << "X_" << i << "_" << j << " " << sol[i][j] << endl;
+                }
+            }
+        }
+
+        delete[] x;
+        for (int i = 0; i < N + 1; i++) {
+            delete[] sol[i];
+        }
+        delete[] sol;
+    }
 };

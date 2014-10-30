@@ -25,6 +25,18 @@ inline double max(double &lhs, double &rhs) {
     return rhs;
 }
 
+inline double sum(double ** sol, std::set<int> Smin) {
+    double s = 0;
+    std::vector<int> vmin(Smin.begin(), Smin.end());
+    for (unsigned i = 0; i < vmin.size(); i++) {
+        for (unsigned j = i + 1; j < vmin.size(); j++) {
+            s += sol[vmin[i]][vmin[j]];
+        }
+    }
+
+    return s;
+}
+
 int BNC::CPXPUBLIC mycutcallback(CPXCENVptr env, void *cbdata, int wherefrom, 
         void *cbhandle, int *useraction_p) {
     using namespace std;
@@ -44,6 +56,8 @@ int BNC::CPXPUBLIC mycutcallback(CPXCENVptr env, void *cbdata, int wherefrom,
     set<int>::iterator it, jt;
     double cutmin = 0, cutval = 0;
 
+    int status = 0;
+
     double *X = new double[bnc->numCols];
     double *b = new double[dim];
     double **sol = new double * [dim];
@@ -60,19 +74,13 @@ int BNC::CPXPUBLIC mycutcallback(CPXCENVptr env, void *cbdata, int wherefrom,
         b[i] = 0;
     }
 
-    for (i = 0; i < dim; i++) {
-        for (j = i + 1; j < dim; j++) {
-            std::cout << setw(5) << std::fixed << std::setprecision(2) << X[i*dim + j];
-        }
-        std::cout << std::endl;
-    }
-
     S.insert(0);
     // soma dos pesos (X*) das arestas cruzando S0
     for (i = 1; i < dim; i++) {
         cutmin += sol[0][i];
-        b[i]   += sol[0][i];
+        b[i]   += (sol[0][i] > 0) ? sol[0][i] : 0;
     }
+
     cutval = cutmin;
     Smin = S;
 
@@ -108,22 +116,56 @@ int BNC::CPXPUBLIC mycutcallback(CPXCENVptr env, void *cbdata, int wherefrom,
         }
     }
 
-    std::cout << "Smin: (" << Smin.size() << ")" << std::endl;
+    cout << "Smin: (" << Smin.size() << ")" << endl;
     for (it = Smin.begin(); it != Smin.end(); ++it) {
-        std::cout << *it << " ";
+        cout << *it << " ";
     }
-    std::cout << std::endl;
+    cout << endl;
 
-    // unlock
-    pthread_mutex_unlock(&cs_mutex);
+    vector<int> vmin(Smin.begin(), Smin.end());
+    char varName[100];
+    int colIndex, counter = 0;
+    int cutnz = (Smin.size() * (Smin.size() - 1)) / 2;
+    int * cutInd = new int[cutnz];
+    double * cutVal = new double[cutnz];
+    double left = 0, rhs = Smin.size() - 1;
+
+    for (i = 0; i < vmin.size(); i++) {
+        for (j = i + 1; j < vmin.size(); j++) {
+            sprintf(varName, "X_%d_%d", vmin[i], vmin[j]);
+            CPXgetcolindex(env, bnc->model, varName, &colIndex);
+            cutInd[counter] = colIndex;
+            cutVal[counter] = 1;
+            if (sol[vmin[i]][vmin[j]] > 0)
+                left += sol[vmin[i]][vmin[j]];
+            counter++;
+        }
+    }
+
+    cout << "LEFT = " << left << endl;
+    if (left <= rhs || Smin.size() == dim) {
+        cout << "Corte nao violado: " << left << " " << rhs << endl;
+    } else {
+        if (CPXcutcallbackadd(env, cbdata, wherefrom, cutnz, rhs, 'L', cutInd, cutVal, 1)) {
+            cout << "Falha ao adicionar corte." << endl;
+        }
+    }
+
+    delete[] cutInd;
+    delete[] cutVal;
 
     delete[] X;
     delete[] b;
+    
     for (i = 0; i < dim; i++)
         delete[] sol[i];
     delete[] sol;
 
-    return 0;
+    // unlock
+    pthread_mutex_unlock(&cs_mutex);
+
+
+    return status;
 }
 
 void BNC::createLP(const int ** matrix, unsigned dim) {
@@ -228,12 +270,7 @@ int BNC::initBranchAndCut(int ub, std::string instanceName) {
     CPXgettime(env, &cplexTimeAfter);
     double time = cplexTimeAfter - cplexTimeBefore;
 
-    // Imprime resultados
-    //printResults(env, model, instanceName, time);
-    //printNumberOfCuts();
-    //printResultsToFile(env, model, instanceName, time);
-    //printSolution(argv[1], env, model, cur_numcols);
-
+    bnc::printSolution(env, model, numCols, i->getDim());
     CPXfclose(fp);
 
     // Free
