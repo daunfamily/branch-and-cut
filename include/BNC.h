@@ -24,6 +24,8 @@ class BNC {
         BNC(Instance&);
         virtual ~BNC();
         int initBranchAndCut(int ub, std::string instanceName);
+        void maxBack(double ** sol, std::set<int>& Smin);
+        void createLP(const int ** matrix, unsigned dim);
 
     private:
         CPXENVptr env;
@@ -32,7 +34,6 @@ class BNC {
 
         int numCols;
 
-        void createLP(const int ** matrix, unsigned dim);
         static int CPXPUBLIC mycutcallback(CPXCENVptr env, void *cbdata, int wherefrom, 
                 void *cbhandle, int *useraction_p);
 };
