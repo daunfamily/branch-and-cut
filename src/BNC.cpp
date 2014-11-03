@@ -43,16 +43,19 @@ void BNC::maxBack(double ** sol, std::set<int>& Smin) {
     std::set<int> V, S;
     std::set<int>::iterator it, jt;
 
-    int i, j, m;
+    int vertex, i, j, m;
 
     V.clear();
+    S.clear();
+    Smin.clear();
+
     // inicializacao algoritmo max-back
     for (i = 1; i < dim; i++) {
         V.insert(i);
-        b[i] = 0;
+        b[i] = 0.0;
     }
+    b[0] = 0.0;
 
-    S.clear();
     S.insert(0);
     // soma dos pesos (X*) das arestas cruzando S0
     for (i = 1; i < dim; i++) {
@@ -65,35 +68,39 @@ void BNC::maxBack(double ** sol, std::set<int>& Smin) {
 
     while (S.size() < dim) {
         // seleciona v fora de S de maior max-back
-        m = -1, i;
+        m = -1.0;
         for (it = V.begin(); it != V.end(); ++it) {
-            if (b[*it] > m) {
-                m = b[*it];
-                i = *it;
+            i = *it;
+            if (b[i] > m) {
+                m = b[i];
+                vertex = i;
             }
         }
 
-        jt = V.find(i);
-        j = *jt;
-        S.insert(j); // S = S + v
-        V.erase(jt);
-
-        cutval = cutval + 2 - (2 * b[j]);
+        S.insert(vertex); // S = S + v
+        V.erase(V.find(vertex));
+        cutval = cutval + 2 - (2 * b[vertex]);
 
         for (it = V.begin(); it != V.end(); ++it) {
-            if (*it < j)
-                b[*it] = b[*it] + sol[*it][j];
+            i = *it;
+            if (i < vertex)
+                b[i] += sol[i][vertex];
             else
-                b[*it] = b[*it] + sol[j][*it];
+                b[i] += sol[vertex][i];
         }
 
-        if (cutval < cutmin) {
+        if (cutval < (cutmin - bnc::eps)) {
             cutmin = cutval;
             Smin = S;
         }
     }
 
-    delete[] b;
+    //    vector<int> t(Smin.begin(), Smin.end());
+    //    for(i=0;i<t.size();i++)
+    //        cout << t[i] << " ";
+    //    cout << endl;
+
+    delete b;
 }
 
 int BNC::CPXPUBLIC mycutcallback(CPXCENVptr env, void *cbdata, int wherefrom, 
@@ -142,19 +149,18 @@ int BNC::CPXPUBLIC mycutcallback(CPXCENVptr env, void *cbdata, int wherefrom,
                 CPXgetcolindex(env, bnc->model, varName, &colIndex);
                 cutInd[counter] = colIndex;
                 cutVal[counter] = 1;
-                if (sol[vmin[i]][vmin[j]] > 0)
-                    left += sol[vmin[i]][vmin[j]];
+                left += sol[vmin[i]][vmin[j]];
                 counter++;
             }
         }
 
-        //        cout << "LEFT = " << left << " RIGHT = " << rhs << endl;
-
-        if (left + 0.0001 <= rhs) {
+        if (left + bnc::eps <= rhs) {
             cout << "Corte nao violado: " << left << " " << rhs << endl;
         }
 
-        if (CPXcutcallbackadd(env, cbdata, wherefrom, cutnz, rhs, 'L', cutInd, cutVal, 1)) {
+        status = CPXcutcallbackadd(env, cbdata, wherefrom, cutnz, rhs, 'L', cutInd, cutVal, 1);
+
+        if (status) {
             cout << "Falha ao adicionar corte." << endl;
         }
 
@@ -250,7 +256,7 @@ int BNC::initBranchAndCut(int ub, std::string instanceName) {
 
     // Parametros CPLEX
     CPXsetintparam(env, CPX_PARAM_SCRIND, CPX_ON);
-    CPXsetintparam(env, CPX_PARAM_MIPINTERVAL, 100);
+    CPXsetintparam(env, CPX_PARAM_MIPINTERVAL, 20);
     CPXsetintparam(env, CPX_PARAM_PRELINEAR, 0);
     CPXsetintparam(env, CPX_PARAM_MIPCBREDLP, CPX_OFF);
     CPXsetintparam(env, CPX_PARAM_REDUCE, CPX_PREREDUCE_PRIMALONLY);
@@ -263,8 +269,7 @@ int BNC::initBranchAndCut(int ub, std::string instanceName) {
     // cut callback
     CPXsetcutcallbackfunc(env, mycutcallback, this);
 
-    CPXFILEptr fp;
-    fp = CPXfopen ("TSP.log", "w");
+    CPXFILEptr fp = CPXfopen ("TSP.log", "w");
 
     // Le MIPStart
     //char mst[100];
@@ -278,9 +283,16 @@ int BNC::initBranchAndCut(int ub, std::string instanceName) {
     CPXgettime(env, &cplexTimeAfter);
     double time = cplexTimeAfter - cplexTimeBefore;
 
-    //bnc::printSolution(env, model, numCols, i->getDim());
-    CPXfclose(fp);
+    double objval;
+    CPXgetobjval(env, model, &objval);
+    ofstream f;
+    f.open(i->getName().c_str());
+    f << objval;
+    f.close();
+    
 
+    bnc::printSolution(env, model, numCols, i->getDim());
+    CPXfclose(fp);
     // Free
     CPXfreeprob(env, &model);
     CPXcloseCPLEX(&env);

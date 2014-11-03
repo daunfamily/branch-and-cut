@@ -13,6 +13,7 @@
 #include <ilcplex/ilocplex.h>
 
 namespace bnc {
+    const double eps = 0.001;
     std::string getColName(CPXCENVptr cpxEnv, CPXLPptr cpxModel, int colInd);
     void storeLPSolution(CPXCENVptr env, CPXLPptr model, int numcols, double *x, double **sol);
     void printSolution(CPXCENVptr env, CPXLPptr model, int cur_numcols, int N);
