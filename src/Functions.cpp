@@ -78,4 +78,6 @@ namespace bnc {
         }
         delete[] sol;
     }
+
+
 };

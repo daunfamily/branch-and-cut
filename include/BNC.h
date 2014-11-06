@@ -9,13 +9,15 @@
 #ifndef BNC_H
 #define BNC_H
 
+#include <algorithm>
+#include <list>
+#include <pthread.h>
 #include <set>
 #include <string>
-#include <pthread.h>
+
 #include <ilcplex/ilocplex.h>
 
 #include "Functions.h"
-
 #include "Instance.h"
 
 class BNC {
@@ -25,6 +27,7 @@ class BNC {
         virtual ~BNC();
         int initBranchAndCut(int ub, std::string instanceName);
         void maxBack(double ** sol, std::set<int>& Smin);
+        void minCut(double ** sol, std::set<int>& Smin);
         void createLP(const int ** matrix, unsigned dim);
 
     private:
@@ -36,6 +39,7 @@ class BNC {
 
         static int CPXPUBLIC mycutcallback(CPXCENVptr env, void *cbdata, int wherefrom, 
                 void *cbhandle, int *useraction_p);
+
 };
 
 #endif
