@@ -19,21 +19,13 @@ BNC::~BNC() {
     delete i;
 }
 
-void print(std::list<list<int>> g) {
-    for (auto gi : g) {
-        for (auto i : gi) {
-            std::cout << i << " ";
+void adjustSol(double ** sol, int dim) {
+    for (int i = 0; i < dim; i++) {
+        for (int j = i + 1; j < dim; j++) {
+            if (sol[i][j] < bnc::eps)
+                sol[i][j] = 0;
         }
-        std::cout << std::endl;
     }
-    std::cout << std::endl;
-}
-
-void print(std::list<int> p) {
-    for (auto i : p) {
-        std::cout << i << " ";
-    }
-    std::cout << endl;
 }
 
 void BNC::maxBack(double ** sol, std::set<int>& Smin) {
@@ -63,6 +55,8 @@ void BNC::maxBack(double ** sol, std::set<int>& Smin) {
 
     cutval = cutmin;
     Smin = S;
+
+    adjustSol(sol, dim);
 
     while (S.size() < dim) {
         // seleciona v fora de S de maior max-back
@@ -97,116 +91,21 @@ void BNC::maxBack(double ** sol, std::set<int>& Smin) {
     delete b;
 }
 
-bool operator==(std::list<int> l, std::list<int> r) {
-    l.sort();
-    r.sort();
-
-    for (auto i : l) {
-        for (auto j : r) {
-            if (i != j)
-                return false;
-        }   
-    }
-    return true;
-
-}
-
-std::list<list<int>>::iterator findNode(std::list<list<int>>& V, int a) {
-    std::list<int>::iterator it;
-    std::list<list<int>>::iterator git;
-
-    for (git = V.begin(); git != V.end(); ++git) {
-        for (it = git->begin(); it != git->end(); ++it) {
-            if (*it == a)
-                return git;
-        }
-    }
-    return V.end();
-}
-
-bool deleteNode(std::list<list<int>>& V, int a) {
-    std::list<list<int>>::iterator git = findNode(V, a);
-
-    if (git != V.end()) {
-        V.erase(git);
-        return true;
-    }
-
-    return false;
-}
-
-double evalCutPhase(double ** sol, std::list<list<int>>& g, std::list<int> p) {
-    double cut = 0.0;
-    std::list<list<int>>::iterator git;
-
-    for (git = g.begin(); git != g.end(); ++git) {
-        if (git->front() < p.front())
-            cut += sol[git->front()][p.front()];
-        else
-            cut += sol[p.front()][git->front()];
-    }
-
-    return cut;
-}
-
-double updateEdges(double ** sol, std::list<list<int>>& g, std::list<int>& l1, std::list<int>& l2) {
-    double e = 0.0, d, i;
-    std::list<list<int>>::iterator git, itP1, itP2;
-    std::list<int>::iterator it, jt;
-
-    itP1 = findNode(g, l1.front());
-    itP2 = findNode(g, l2.front());
-
-    //cout << "update edges:" << endl;
-    //cout << "l1:" << endl;
-    //print(l1);
-    //cout << "l2:" << endl;
-    //print(l2);
-
-    for (git = g.begin(); git != g.end(); ++git) {
-        if (git == itP1 || git == itP2) {
-            continue;
-        }
-
-        if (git->front() < itP1->front())
-            e = sol[git->front()][itP1->front()];
-        else
-            e = sol[itP1->front()][git->front()];
-        //cout << "aresta " << git->front() << "<-->" << itP1->front() << " = " << e << endl;
-
-        for (it = git->begin(); it != git->end(); ++it) {
-            for (jt = itP2->begin(); jt != itP2->end(); ++jt) {
-                if (*it < *jt)
-                    d = sol[*it][*jt] += e;
-                else
-                    d = sol[*jt][*it] += e;
-                //cout << "\t aresta " << *it << "<-->" << *jt << " = " << d << endl;
-            }
-
-            for (jt = itP1->begin(); jt != itP1->end(); ++jt) {
-                if (*it < *jt)
-                    sol[*it][*jt] = e;
-                else
-                    sol[*jt][*it] = e;
-                //cout << "\t aresta " << *it << "<-->" << *jt << " = " << e << endl;
-            }
-        }
-    }
-}
-
-void BNC::minCut(double ** sol, std::set<int>& Smin) {
+void BNC::minCut(double ** sol, std::set<int>& Smin, double& mc) {
     using namespace std;
+    using namespace bnc;
 
-    int a = 0, vertex, i, j, m, dim = this->i->getDim();
+    int a = 1, c, vertex, i, j, m, dim = this->i->getDim();
     list<list<int>> graph, V, S;
     double ** bkp = sol;
-    double cutphasemin = bnc::inf, cutphase = 0;
+    double cutphasemin = inf, cutphase = 0;
 
     list<int> l1, l2, l3;
     list<int>::iterator it, jt;
     list<list<int>>::iterator git, gjt, g1, g2;
     list<list<int>>::iterator rgt, lgt;
 
+    adjustSol(sol, dim);
     Smin.clear();
     for (i = 0; i < dim; i++) {
         list<int> l;
@@ -247,10 +146,11 @@ void BNC::minCut(double ** sol, std::set<int>& Smin) {
      *     sol[5][6] = 1;
      *     sol[6][7] = 3;
      * 
+     * 
      */
     // -----------------------------
 
-    while (graph.size() > 2) {
+    while (graph.size() > 1) {
         V.clear();
         S.clear();
 
@@ -262,27 +162,29 @@ void BNC::minCut(double ** sol, std::set<int>& Smin) {
             // print(S);
             // seleciona v fora de S de maior max-back
             m = -1.0;
-            for (git = S.begin(); git != S.end(); ++git) {
-                for (gjt = V.begin(); gjt != V.end(); ++gjt) {
+            for (gjt = V.begin(); gjt != V.end(); ++gjt) {
+                c = 0;
+                j = gjt->front();
+
+                for (git = S.begin(); git != S.end(); ++git) {
                     i = git->front();
-                    j = gjt->front();
                     if (i < j) {
-                        if (sol[i][j] >= m)
-                            m = sol[i][j], vertex = j;
+                        c += sol[i][j];
                     } else {
-                        if (sol[j][i] > m)
-                            m = sol[j][i], vertex = j;
+                        c += sol[j][i];
                     }
+                }
+
+                if (c > m) {
+                    m = c, vertex = j;
                 }
             }
 
             S.push_back(*(findNode(V, vertex)));
             deleteNode(V, vertex);
-            //cin >> i;
         }
 
-        //cout << "S: " << endl;
-        //print(S);
+        //        print(S);
 
         // ultimos dois adicionados 
         l1 = S.back();
@@ -291,12 +193,12 @@ void BNC::minCut(double ** sol, std::set<int>& Smin) {
         S.pop_back();
 
         //cout << "dois ultimos adicionados em S: " << endl;
-        //print(l1);
-        //print(l2);
+        //        print(l1);
+        //        print(l2);
 
         cutphase = evalCutPhase(sol, graph, l1);    // valor do cut-of-the-phase
 
-        //cout << cutphase << endl;
+        //        cout << "cut-of-the-phase: " << cutphase << endl;
 
         updateEdges(sol, graph, l1, l2);            // atualizacao das arestas
 
@@ -306,28 +208,29 @@ void BNC::minCut(double ** sol, std::set<int>& Smin) {
         l3.insert(l3.begin(), l2.begin(), l2.end());
 
         deleteNode(graph, l1.front());              // remove l1 do grafo
-        deleteNode(graph, l2.back());               
+        deleteNode(graph, l2.front());
         graph.push_front(l3);
 
         //cout << "Graph: " << endl;
-        //print(graph);
-        //cin >> i;
+        //        print(graph);
+        //        cin >> i;
 
         if (cutphase < cutphasemin) {
             cutphasemin = cutphase;
             Smin.clear();
             Smin.insert(l1.begin(), l1.end());
-            if (cutphase == 0)
+            if (cutphase + eps == eps)
                 break;
         }
     }
+    mc = cutphasemin;
 
-    cout << "minimum cut : " << cutphasemin << endl;
-    cout << "Smin: " << endl;
-    for (auto x : Smin) {
-        cout << x << " ";
-    }
-    cout << endl;
+    //    cout << "minimum cut : " << cutphasemin << endl;
+    //    cout << "Smin: " << endl;
+    //    for (auto x : Smin) {
+    //        cout << x << " ";
+    //    }
+    //    cout << endl;
 
     // ----------------------
     // grafo exemplo
@@ -336,6 +239,8 @@ void BNC::minCut(double ** sol, std::set<int>& Smin) {
      *     delete[] sol;
      *     sol = bkp;
      */
+
+
     // ----------------------
 }
 
@@ -343,22 +248,26 @@ int BNC::CPXPUBLIC mycutcallback(CPXCENVptr env, void *cbdata, int wherefrom,
         void *cbhandle, int *useraction_p) {
     using namespace std;
 
-    int i, j, m, dim;
+    bool frac;                  // solucao fracionaria
+    double *X = NULL, ** sol = NULL, mc;
+    int i, j, m, dim, ndepth, status = 0;
+
     set<int> Smin;
 
     // lock
     pthread_mutex_t cs_mutex = PTHREAD_MUTEX_INITIALIZER;
     pthread_mutex_lock(&cs_mutex);
-
     *useraction_p = CPX_CALLBACK_DEFAULT;
+
+    CPXgetcallbacknodeinfo (env, cbdata, wherefrom, 0, CPX_CALLBACK_INFO_NODE_DEPTH, &ndepth);
 
     BNC * bnc = (BNC * ) cbhandle;
     dim = bnc->i->getDim();
 
-    int status = 0;
+    status = 0;
 
-    double *X = new double[bnc->numCols];
-    double **sol = new double * [dim];
+    X = new double[bnc->numCols];
+    sol = new double * [dim];
     for (i = 0; i < dim; i++) {
         sol[i] = new double[dim];
     }
@@ -366,12 +275,18 @@ int BNC::CPXPUBLIC mycutcallback(CPXCENVptr env, void *cbdata, int wherefrom,
     CPXgetcallbacknodex(env, cbdata, wherefrom, X, 0, bnc->numCols - 1);
     bnc::storeLPSolution(env, bnc->model, bnc->numCols, X, sol);
 
-    // Smin contem conjunto de corte minimo do max-back
-    //bnc->maxBack(sol, Smin);
-    //if (Smin.size() == 1 || Smin.size() == dim)
-        bnc->minCut(sol, Smin);
+    frac = bnc::isFrac(sol, dim);
 
-    if (Smin.size() < dim) {
+//    if (ndepth <= 7 || !frac) {
+//        bnc->maxBack(sol, Smin);
+//        if (Smin.size() < 2) {
+            bnc->minCut(sol, Smin, mc);
+//        }
+//    } else { 
+//        bnc->minCut(sol, Smin, mc);
+//    }
+//
+    if (Smin.size() < dim && mc + bnc::eps < 2) {
         vector<int> vmin(Smin.begin(), Smin.end());
 
         char varName[100];
@@ -492,7 +407,7 @@ int BNC::initBranchAndCut(int ub, std::string instanceName) {
 
     // Parametros CPLEX
     CPXsetintparam(env, CPX_PARAM_SCRIND, CPX_ON);
-    CPXsetintparam(env, CPX_PARAM_MIPINTERVAL, 20);
+    CPXsetintparam(env, CPX_PARAM_MIPINTERVAL, 1);
     CPXsetintparam(env, CPX_PARAM_PRELINEAR, 0);
     CPXsetintparam(env, CPX_PARAM_MIPCBREDLP, CPX_OFF);
     CPXsetintparam(env, CPX_PARAM_REDUCE, CPX_PREREDUCE_PRIMALONLY);

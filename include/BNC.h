@@ -27,7 +27,7 @@ class BNC {
         virtual ~BNC();
         int initBranchAndCut(int ub, std::string instanceName);
         void maxBack(double ** sol, std::set<int>& Smin);
-        void minCut(double ** sol, std::set<int>& Smin);
+        void minCut(double ** sol, std::set<int>& Smin, double& mc); 
         void createLP(const int ** matrix, unsigned dim);
 
     private:

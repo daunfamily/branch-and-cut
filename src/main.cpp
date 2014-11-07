@@ -25,7 +25,7 @@ std::string inline getInstanceName(std::string name) {
 int main(int argc, char** argv) {
     std::string file = "";
     std::stringstream ss;
-    int ub = 99999;
+    int ub = 999999;
 
     if (argc >= 2) {
         file.assign(argv[1]);
